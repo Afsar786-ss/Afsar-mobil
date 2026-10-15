@@ -12,26 +12,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Show project files
-        run: |
-          echo "Repository files:"
-          find . -maxdepth 4 -type f
+      - name: Extract Android project
+        run: unzip -o Afsar_Mobile_Android_Project.zip
 
-      - name: Check Android project
-        run: |
-          if [ -f "gradlew" ]; then
-            chmod +x gradlew
-            echo "Gradle wrapper found"
-          else
-            echo "Android Gradle project files are missing from repository root."
-            exit 1
-          fi
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
       - name: Build APK
-        run: ./gradlew assembleDebug
+        run: gradle -p AfsarMobileAndroidProject assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Afsar-Mobile-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: AfsarMobileAndroidProject/app/build/outputs/apk/debug/*.apk
