@@ -4,6 +4,9 @@ name: Build Afsar Mobile APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,22 +17,53 @@ jobs:
 
       - name: Extract project ZIP
         run: |
+          mkdir -p project
           unzip -o Afsar_Mobile_Android_Project.zip -d project
-          find project -maxdepth 4 -type f
+          echo "Files extracted:"
+          find project -maxdepth 5 -type f | head -200
 
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses          
 
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Locate Gradle project
+      - name: Locate Android project
+        id: locate
+        shell: bash
         run: |
-          find project -name gradlew -type f
-          find project -name settings.gradle -o -name settings.gradle.kts
+          WRAPPER=$(find project -type f -name gradlew -print -quit)
+          if [ -z "$WRAPPER" ]; then
+            echo "ERROR: No gradlew file found in ZIP."
+            echo "The ZIP may not contain a complete Android Studio project."
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$WRAPPER")
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          chmod +x "$WRAPPER"
+          echo "Android project: $PROJECT_DIR"
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        shell: bash
+        run: |
+          SDKMANAGER=$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}" -type f -name sdkmanager -print -quit)
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found."
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --licenses || true
+
+      - name: Build debug APK
+        run: |
+          cd "${{ steps.locate.outputs.dir }}"
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Afsar-Mobile-APK
+          path: project/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
